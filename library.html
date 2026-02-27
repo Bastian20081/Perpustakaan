@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistem Perpustakaan</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+--pink:#883e3e;
+--purple:#b9b7e3;
+--yellow:#e6e68f;
+--green:#b9e49a;
+--blue:#67b3d8;
+--primary:#2d89ef;
+--success:#2ecc71;
+--danger:#e74c3c;
+--dark:#1e272e;
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',sans-serif;}
+body{background:#f4f6fb;padding:10px;}
+.container{max-width:1400px;margin:auto;background:white;border-radius:15px;overflow:hidden;box-shadow:0 15px 40px rgba(0,0,0,0.15);}
+.top{display:grid;grid-template-columns:1fr 1fr 1.5fr;}
+.section{padding:20px;}
+.left{background:var(--pink);}
+.middle{background:var(--purple);}
+.right{background:var(--yellow);}
+.bottom{background:var(--green);padding:20px;}
+.footer{background:var(--blue);padding:15px;display:flex;justify-content:center;gap:20px;flex-wrap:wrap;}
+h2{text-align:center;margin-bottom:15px;}
+label{font-size:13px;display:block;margin-top:8px;}
+input,select{width:100%;padding:6px 8px;border-radius:6px;border:1px solid #ccc;margin-top:4px;}
+button{padding:8px 12px;border:none;border-radius:6px;cursor:pointer;font-weight:500;margin-top:10px;}
+.btn-green{background:var(--success);color:white;}
+.btn-blue{background:var(--primary);color:white;}
+.btn-red{background:var(--danger);color:white;}
+.btn-dark{background:var(--dark);color:white;}
+button:hover{opacity:0.9;}
+table{width:100%;border-collapse:collapse;margin-top:10px;}
+th,td{padding:6px;font-size:12px;text-align:center;border:1px solid rgba(0,0,0,0.2);}
+thead{background:#ddd;}
+.cover-box{text-align:center;margin-top:10px;}
+.cover-box img{width:120px;height:160px;object-fit:cover;border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,0.3);}
+@media(max-width:1000px){.top{grid-template-columns:1fr 1fr;}}
+@media(max-width:768px){.top{grid-template-columns:1fr;}.footer{flex-direction:column;}}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<div class="top">
+
+<!-- TRANSAKSI -->
+<div class="section left">
+<h2>Transaksi Peminjaman</h2>
+
+<label>Kode Pinjam</label>
+<input type="text" id="kode">
+<button class="btn-green" onclick="generateKode()">GENERATE</button>
+
+<label>Tanggal Pinjam</label>
+<input type="date" id="tglPinjam">
+
+<label>Nama Anggota</label>
+<input type="text" id="nama">
+
+<label>Pilih Buku</label>
+<select id="pilihBuku" onchange="previewCover()"></select>
+
+<label>Tanggal Kembali</label>
+<input type="date" id="tglKembali" onchange="hitungLama()">
+
+<label>Lama Pinjam (Hari)</label>
+<input type="number" id="lama" readonly>
+
+<label>Denda (Rp)</label>
+<input type="number" id="denda" readonly>
+
+<button class="btn-green" onclick="simpanTransaksi()">Pinjam</button>
+</div>
+
+<!-- DATA BUKU -->
+<div class="section middle">
+<h2>Data Buku</h2>
+
+<label>ISBN</label>
+<input type="text" id="isbn">
+
+<label>Judul</label>
+<input type="text" id="judul">
+
+<label>Penerbit</label>
+<input type="text" id="penerbit">
+
+<label>Tahun</label>
+<input type="number" id="tahun">
+
+<div class="cover-box">
+<img id="coverPreview">
+</div>
+
+<button class="btn-green" onclick="tambahBuku()">ADD</button>
+<button class="btn-red" onclick="hapusBuku()">DELETE</button>
+</div>
+
+<!-- TABEL BUKU -->
+<div class="section right">
+<h2>Tabel Data Buku</h2>
+<table>
+<thead>
+<tr>
+<th>ISBN</th>
+<th>Judul</th>
+<th>Penerbit</th>
+<th>Tahun</th>
+</tr>
+</thead>
+<tbody id="tabelBuku"></tbody>
+</table>
+</div>
+
+</div>
+
+<!-- TABEL TRANSAKSI -->
+<div class="bottom">
+<h2>Data Peminjaman Buku</h2>
+<table>
+<thead>
+<tr>
+<th>Kode</th>
+<th>Tgl Pinjam</th>
+<th>Nama</th>
+<th>Buku</th>
+<th>Tgl Kembali</th>
+<th>Lama</th>
+<th>Denda</th>
+<th>Aksi</th>
+</tr>
+</thead>
+<tbody id="tabelTransaksi"></tbody>
+</table>
+</div>
+
+<div class="footer">
+<button class="btn-dark" onclick="resetForm()">Bersih</button>
+<button class="btn-dark" onclick="hapusSemua()">Reset Semua Data</button>
+</div>
+
+</div>
+
+<script>
+
+// ===== LOCAL STORAGE =====
+let buku = JSON.parse(localStorage.getItem("buku")) || [
+{isbn:"1",judul:"Matematika",penerbit:"Bentang",tahun:"2005"},
+{isbn:"2",judul:"Supernova",penerbit:"Gramedia",tahun:"2009"}
+];
+
+let transaksi = JSON.parse(localStorage.getItem("transaksi")) || [];
+
+let selectedBukuIndex = null;
+let selectedTransaksiIndex = null;
+
+const batasPinjam = 7;
+const dendaPerHari = 2000;
+
+// ===== LOAD BUKU =====
+function loadBuku(){
+const select=document.getElementById("pilihBuku");
+const tabel=document.getElementById("tabelBuku");
+select.innerHTML="";
+tabel.innerHTML="";
+
+buku.forEach((b,i)=>{
+select.innerHTML+=`<option value="${i}">${b.judul}</option>`;
+tabel.innerHTML+=`
+<tr onclick="pilihBuku(${i})" style="cursor:pointer;">
+<td>${b.isbn}</td>
+<td>${b.judul}</td>
+<td>${b.penerbit}</td>
+<td>${b.tahun}</td>
+</tr>`;
+});
+
+localStorage.setItem("buku",JSON.stringify(buku));
+}
+
+// ===== PILIH BUKU =====
+function pilihBuku(i){
+selectedBukuIndex=i;
+document.getElementById("isbn").value=buku[i].isbn;
+document.getElementById("judul").value=buku[i].judul;
+document.getElementById("penerbit").value=buku[i].penerbit;
+document.getElementById("tahun").value=buku[i].tahun;
+}
+
+// ===== TAMBAH BUKU =====
+function tambahBuku(){
+let isbn=document.getElementById("isbn").value;
+let judul=document.getElementById("judul").value;
+let penerbit=document.getElementById("penerbit").value;
+let tahun=document.getElementById("tahun").value;
+
+if(!isbn||!judul||!penerbit||!tahun){
+alert("Lengkapi data buku!");
+return;
+}
+
+if(selectedBukuIndex===null){
+buku.push({isbn,judul,penerbit,tahun});
+}else{
+buku[selectedBukuIndex]={isbn,judul,penerbit,tahun};
+selectedBukuIndex=null;
+}
+
+loadBuku();
+}
+
+// ===== HAPUS BUKU =====
+function hapusBuku(){
+if(selectedBukuIndex===null){
+alert("Pilih buku dulu!");
+return;
+}
+buku.splice(selectedBukuIndex,1);
+selectedBukuIndex=null;
+loadBuku();
+}
+
+// ===== GENERATE KODE =====
+function generateKode(){
+document.getElementById("kode").value="PJ-"+Math.floor(Math.random()*10000);
+}
+
+// ===== HITUNG LAMA & DENDA =====
+function hitungLama(){
+let tglP=new Date(document.getElementById("tglPinjam").value);
+let tglK=new Date(document.getElementById("tglKembali").value);
+let diff=(tglK-tglP)/(1000*60*60*24);
+
+document.getElementById("lama").value=diff>0?diff:0;
+
+if(diff>batasPinjam){
+let telat=diff-batasPinjam;
+document.getElementById("denda").value=telat*dendaPerHari;
+}else{
+document.getElementById("denda").value=0;
+}
+}
+
+// ===== SIMPAN TRANSAKSI =====
+function simpanTransaksi(){
+let kode=document.getElementById("kode").value;
+let tglPinjam=document.getElementById("tglPinjam").value;
+let nama=document.getElementById("nama").value;
+let bukuIndex=document.getElementById("pilihBuku").value;
+let tglKembali=document.getElementById("tglKembali").value;
+let lama=document.getElementById("lama").value;
+let denda=document.getElementById("denda").value;
+
+if(!kode||!tglPinjam||!nama||bukuIndex===""){
+alert("Lengkapi data transaksi!");
+return;
+}
+
+transaksi.push({
+kode,
+tglPinjam,
+nama,
+buku:buku[bukuIndex].judul,
+tglKembali,
+lama,
+denda
+});
+
+renderTransaksi();
+resetForm();
+}
+
+// ===== RENDER TRANSAKSI =====
+function renderTransaksi(){
+let tabel=document.getElementById("tabelTransaksi");
+tabel.innerHTML="";
+
+transaksi.forEach((t,i)=>{
+tabel.innerHTML+=`
+<tr>
+<td>${t.kode}</td>
+<td>${t.tglPinjam}</td>
+<td>${t.nama}</td>
+<td>${t.buku}</td>
+<td>${t.tglKembali}</td>
+<td>${t.lama}</td>
+<td>${t.denda}</td>
+<td><button onclick="hapusTransaksi(${i})">Hapus</button></td>
+</tr>`;
+});
+
+localStorage.setItem("transaksi",JSON.stringify(transaksi));
+}
+
+// ===== HAPUS TRANSAKSI =====
+function hapusTransaksi(i){
+transaksi.splice(i,1);
+renderTransaksi();
+}
+
+// ===== RESET FORM =====
+function resetForm(){
+document.getElementById("kode").value="";
+document.getElementById("tglPinjam").value="";
+document.getElementById("nama").value="";
+document.getElementById("tglKembali").value="";
+document.getElementById("lama").value="";
+document.getElementById("denda").value="";
+}
+
+// ===== RESET SEMUA =====
+function hapusSemua(){
+if(confirm("Hapus semua data?")){
+localStorage.clear();
+location.reload();
+}
+}
+
+// INIT
+loadBuku();
+renderTransaksi();
+
+</script>
+
+</body>
+</html>
